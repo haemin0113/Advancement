@@ -1,0 +1,75 @@
+goals:
+  # 체크리스트 — 5개 중 3개 완료
+  season_explorer:
+    title: "&b시즌 탐험가"
+    type: checklist
+    require: 3
+    items:
+      - { key: "ancient_ruins", title: "고대 유적 방문", when: "region_enter:ancient_ruins" }
+      - { key: "frozen_peak",   title: "얼어붙은 봉우리 방문", when: "region_enter:frozen_peak" }
+      - { key: "kill_golem",    title: "보스 골렘 처치", when: "mob_kill:mythic:BOSS_GOLEM" }
+      - { key: "nether",        title: "네더 입장", when: "world_enter:world_nether" }
+      - { key: "elytra",        title: "겉날개 획득", when: "pickup:elytra" }
+    reset: "season:2025S3"
+    rewards:
+      - give: "@시즌보상상자 1"
+
+  # 스트릭 — 180초 안에 제작/제련 콤보 50
+  smith_combo:
+    title: "&6대장장이 콤보"
+    type: streak
+    track:
+      - { source: "craft:any" }
+      - { source: "smelt:any" }
+    streak:
+      window_sec: 180
+      breaks_on: ["death","world_change","logout","time_gap"]
+      keep_best: true
+    target: 50
+    reset: weekly
+    rewards:
+      - money: 2000
+      - cmd: "broadcast &6%player%&f가 &e대장장이 콤보 50&f 달성!"
+
+  # 타임트라이얼 — 10분 안에 밀 300개
+  wheat_speedrun:
+    title: "&e밀 속사수"
+    type: timetrial
+    track:
+      - { source: "block_break:wheat" }
+    timetrial:
+      duration_sec: 600
+      start: "on_first_event"
+      cooldown_sec: 60
+      metric: "count"
+      keep_best: true
+    target: 300
+    reset: weekly
+    rewards:
+      - money: 1500
+      - give: "@농부팩 1"
+
+  # IA 아이템 제작 카운터
+  ia_bread_crafter:
+    title: "&a커스텀 빵 장인"
+    type: counter
+    track:
+      - source: "craft:any"
+        ia_ids: ["myitems:bread"]
+    target: 10
+    reset: daily
+    rewards:
+      - give: "@빵세트 1"
+
+  # MMOItems 픽업 카운터
+  mmo_token_collector:
+    title: "&d토큰 수집가"
+    type: counter
+    track:
+      - source: "pickup:any"
+        mmo_type: "MATERIAL"
+        mmo_ids: ["BOSS_TOKEN"]
+    target: 5
+    reset: weekly
+    rewards:
+      - money: 3000
