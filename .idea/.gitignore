@@ -1,3 +1,21 @@
-# 디폴트 무시된 파일
-/shelf/
-/workspace.xml
+target/
+*.log
+hs_err_pid*.log
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Minecraft server data (런타임 산출물은 제외)
+logs/
+cache/
+crash-reports/
+
+# Advancement plugin runtime data
+plugins/Advancement/data/
+plugins/Advancement/reward.yml
