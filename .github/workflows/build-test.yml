@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    # 문서만 바뀐 PR은 스킵하고 싶으면 주석 해제
+    # paths-ignore: [ '**/*.md', 'docs/**' ]
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:               # ← 브랜치 보호 규칙의 “CI / build-test”와 정확히 일치해야 함
+    name: build-test        # ← PR 화면에 보이는 잡 이름
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Temurin JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'      # pom이 17이면 '17'로 바꿔도 됨
+          cache: maven
+
+      - name: Print Maven/Java
+        run: |
+          java -version
+          mvn -v
+
+      - name: Build (skip tests)
+        run: mvn -B -DskipTests package
+
+      - name: Upload jar (PR only)
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Advancement
+          path: target/*.jar
