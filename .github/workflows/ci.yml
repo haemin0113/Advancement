@@ -1,11 +1,13 @@
 name: CI
 on:
   pull_request:
-    branches: [ main ]
-  workflow_dispatch: {}   # 수동 실행 버튼을 나타내는 트리거
+    branches: [ main ]     # PR 타깃이 main일 때 실행
+  push:
+    branches: [ main ]     # main에 커밋/머지될 때 실행
+  workflow_dispatch: {}     # Actions 탭에서 수동 실행 버튼
 
 jobs:
-  build-test:
+  build-test:               # <- 이 이름이 체크에 그대로 표시됩니다: "CI / build-test"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
