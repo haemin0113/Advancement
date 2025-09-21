@@ -1,0 +1,43 @@
+goals:
+  daily_harvest:
+    title: "&e일일 수확"
+    reset: daily
+    preset: harvest
+    when: wheat,carrots,potatoes
+    target: 200
+    rewards: [{ money: 600 }]
+
+  weekly_trader:
+    title: "&6주간 상인"
+    reset: weekly
+    preset: trade
+    when: any
+    target: 50
+    rewards: [{ money: 4000 }]
+
+  brewer_week:
+    title: "&d양조 달인"
+    reset: weekly
+    preset: brew
+    when: any
+    target: 64
+    rewards: [{ money: 3000 }]
+
+  elytra_runner:
+    title: "&a엘리트라 장거리"
+    reset: weekly
+    preset: distance
+    when: elytra
+    target: 20000
+    rewards: [{ money: 5000 }]
+
+  vanilla_master:
+    title: "&c바닐라 성취가"
+    type: unique
+    reset: season:2025S4
+    preset: advancement
+    when: "minecraft:story/*"
+    unique_by: advancement_key
+    target: 10
+    rewards:
+      - { cmd: "lp user %player% perm settemp cosmetic.title.master true 30d" }

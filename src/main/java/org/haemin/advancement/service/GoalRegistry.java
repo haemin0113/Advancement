@@ -201,23 +201,28 @@ public class GoalRegistry {
     }
 
     private void applySimpleDsl(GoalDef def, ConfigurationSection cs) {
-        if (def.track == null || def.track.isEmpty()) {
-            String preset = cs.getString("preset", null);
-            String when = cs.getString("when", null);
-            if (preset != null && when != null) {
-                String src = mapPresetToSource(preset.trim(), when.trim());
-                if (src != null) {
-                    Map<String, Object> e = new LinkedHashMap<>();
-                    e.put("source", src);
-                    def.track = List.of(e);
-                    if ("mythic_kill".equalsIgnoreCase(preset) && def.uniqueBy == null) def.uniqueBy = "mythic_id";
-                }
+        String presetRaw = cs.getString("preset", null);
+        if (presetRaw != null && !presetRaw.isBlank()) def.preset = presetRaw.trim().toLowerCase(Locale.ROOT);
+        String whenRaw = cs.getString("when", null);
+        if (whenRaw != null && !whenRaw.isBlank()) def.presetWhen = whenRaw.trim();
+
+        if ((def.track == null || def.track.isEmpty()) && def.preset != null && def.presetWhen != null) {
+            String src = mapPresetToSource(def.preset, def.presetWhen);
+            if (src != null) {
+                Map<String, Object> e = new LinkedHashMap<>();
+                e.put("source", src);
+                def.track = List.of(e);
+                if ("mythic_kill".equals(def.preset) && def.uniqueBy == null) def.uniqueBy = "mythic_id";
             }
         }
-        if ((def.filter == null || def.filter.isBlank()) && cs.isConfigurationSection("where")) {
-            ConfigurationSection w = cs.getConfigurationSection("where");
+
+        ConfigurationSection whereSection = cs.getConfigurationSection("where");
+        Map<String, Object> options = extractPresetOptions(whereSection);
+        if (!options.isEmpty()) def.presetOptions = Collections.unmodifiableMap(options);
+
+        if ((def.filter == null || def.filter.isBlank()) && whereSection != null) {
             List<String> parts = new ArrayList<>();
-            String world = w.getString("world", null);
+            String world = whereSection.getString("world", null);
             if (world != null && !world.isBlank()) {
                 String[] arr = world.split(",");
                 StringBuilder b = new StringBuilder();
@@ -227,7 +232,7 @@ public class GoalRegistry {
                 }
                 if (b.length()>0) parts.add("world in [" + b + "]");
             }
-            String region = w.getString("region", null);
+            String region = whereSection.getString("region", null);
             if (region != null && !region.isBlank()) {
                 String[] arr = region.split(",");
                 StringBuilder b = new StringBuilder();
@@ -237,13 +242,13 @@ public class GoalRegistry {
                 }
                 if (b.length()>0) parts.add("region in [" + b + "]");
             }
-            String regionNot = w.getString("region_not", null);
+            String regionNot = whereSection.getString("region_not", null);
             if (regionNot != null && !regionNot.isBlank()) parts.add("region!='" + regionNot.trim() + "'");
-            String time = w.getString("time", null);
+            String time = whereSection.getString("time", null);
             if (time != null && !time.isBlank()) parts.add("time.in('" + time.trim() + "')");
-            String tool = w.getString("tool", null);
+            String tool = whereSection.getString("tool", null);
             if (tool != null && !tool.isBlank()) parts.add("tool in " + tool.trim());
-            String yb = w.getString("y_between", null);
+            String yb = whereSection.getString("y_between", null);
             if (yb != null && yb.contains("..")) {
                 String[] ab = yb.split("\\.\\.");
                 if (ab.length == 2) parts.add("y.between(" + ab[0].trim() + "," + ab[1].trim() + ")");
@@ -252,19 +257,71 @@ public class GoalRegistry {
         }
     }
 
+    private Map<String, Object> extractPresetOptions(ConfigurationSection whereSection) {
+        if (whereSection == null) return Collections.emptyMap();
+        Map<String, Object> options = new LinkedHashMap<>();
+        if (whereSection.contains("level_min")) options.put("level_min", whereSection.getInt("level_min"));
+        if (whereSection.contains("level_max")) options.put("level_max", whereSection.getInt("level_max"));
+        String merchant = whereSection.getString("merchant_profession", null);
+        if (merchant != null && !merchant.isBlank()) options.put("merchant_profession", merchant.trim().toLowerCase(Locale.ROOT));
+        if (whereSection.contains("distance_sample_ms")) options.put("distance_sample_ms", whereSection.getLong("distance_sample_ms"));
+        if (whereSection.contains("distance_min_m")) options.put("distance_min_m", whereSection.getDouble("distance_min_m"));
+        String mode = whereSection.getString("mode", null);
+        if (mode != null && !mode.isBlank()) options.put("mode", mode.trim().toLowerCase(Locale.ROOT));
+        return options;
+    }
+
     private String mapPresetToSource(String preset, String when) {
-        String list = when.replace(" ", "");
-        String p = preset.toLowerCase(Locale.ROOT);
-        if (p.equals("break") || p.equals("mine")) return "block_break:" + list;
-        if (p.equals("place")) return "block_place:" + list;
-        if (p.equals("kill")) return "mob_kill:" + list;
-        if (p.equals("mythic_kill")) return "mob_kill:mythic:" + list;
-        if (p.equals("craft")) return "craft:" + list;
-        if (p.equals("smelt")) return "smelt:" + list;
-        if (p.equals("pickup")) return "pickup:" + list;
-        if (p.equals("fish")) return "fish:" + list;
-        if (p.equals("stay") || p.equals("region_stay")) return "region_stay:" + list;
-        return null;
+        String list = when.replace(" ", "").toLowerCase(Locale.ROOT);
+        if (list.isEmpty()) list = "any";
+        switch (preset) {
+            case "break":
+            case "mine":
+                return "block_break:" + list;
+            case "place":
+                return "block_place:" + list;
+            case "kill":
+                return "mob_kill:" + list;
+            case "mythic_kill":
+                return "mob_kill:mythic:" + list;
+            case "craft":
+                return "craft:" + list;
+            case "smelt":
+                return "smelt:" + list;
+            case "pickup":
+                return "pickup:" + list;
+            case "fish":
+                return "fish:" + list;
+            case "stay":
+            case "region_stay":
+                return "region_stay:" + list;
+            case "harvest":
+                return "harvest:" + list;
+            case "shear":
+                return "shear:" + list;
+            case "breed":
+                return "breed:" + list;
+            case "tame":
+                return "tame:" + list;
+            case "trade":
+                return "trade:" + list;
+            case "enchant":
+                return "enchant:" + list;
+            case "anvil":
+                return "anvil:" + list;
+            case "smithing":
+                return "smithing:" + list;
+            case "brew":
+                return "brew:" + list;
+            case "consume":
+                return "consume:" + list;
+            case "distance":
+                return "distance:" + list;
+            case "advancement":
+                return "advancement:" + list;
+            default:
+                return null;
+        }
     }
 
     private void ensureGoalFiles() {

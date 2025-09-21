@@ -47,7 +47,7 @@ goals:
   daily_wheat:
     title: "&e일일 채집가"
     reset: daily
-    preset: break          # break/place/kill/mythic_kill/craft/smelt/pickup/fish/stay
+    preset: break          # preset 목록은 아래 표 참고
     when: wheat,carrots,potatoes
     target: 300
     rewards:
@@ -65,10 +65,28 @@ goals:
 - `pickup`      : 아이템 주움 (`pickup`)
 - `fish`        : 낚시 성공 (`fish`)
 - `stay`        : 리전 체류 1초당 +1 (`region_stay`)
+- `harvest`     : 성숙 작물 수확 (`harvest`)
+- `shear`       : 동물 털깎기 (`shear`)
+- `breed`       : 동물 번식 (`breed`)
+- `tame`        : 몹 길들이기 (`tame`)
+- `trade`       : 주민 거래 결과 수령 (`trade`)
+- `enchant`     : 아이템 마법 부여 (`enchant`)
+- `anvil`       : 모루 결과 수령 (`anvil`)
+- `smithing`    : 대장간 결과 수령 (`smithing`)
+- `brew`        : 물약 양조 완료 (`brew`)
+- `consume`     : 음식/물약 소비 (`consume`)
+- `distance`    : 이동 거리 누적 (`distance`)
+- `advancement` : 마인크래프트 업적 달성 (`advancement`)
 
 ### 2.2 when(대상)
-- 여러 개: `diamond_ore,ancient_debris`
+- 기본은 소문자, 여러 개는 `diamond_ore,ancient_debris`
 - 전부 허용: `*` 또는 `any`
+- `harvest`/`shear`/`breed`/`tame`/`trade`/`consume`: 블록·엔티티·아이템 키
+- `trade`: `farmer:2`처럼 직업+레벨, 직업만 지정 시 `farmer`
+- `enchant`: 인챈트 키 (`sharpness` 등) + `where.level_min`, `where.level_max`
+- `smithing`/`anvil`/`brew`: 결과 아이템 또는 포션 키 (`long_swiftness` 등)
+- `distance`: `on_foot`, `boat`, `elytra`
+- `advancement`: `minecraft:story/mine_stone` 형태, `minecraft:story/*` 와일드카드 허용
 - MythicMobs: `mythic_kill` + `when: BOSS_A,BOSS_B` 또는 `*`
 
 ### 2.3 reset(초기화)
@@ -85,6 +103,12 @@ where:
   time: "06:00-23:00"
   tool: HOE              # HOE | PICKAXE | AXE ...
   y_between: "20..60"
+  level_min: 3           # enchant 전용
+  level_max: 5           # enchant 전용
+  merchant_profession: farmer   # trade 전용
+  mode: elytra           # distance 전용
+  distance_sample_ms: 400
+  distance_min_m: 1.5
 ```
 
 ---

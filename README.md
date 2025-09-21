@@ -74,7 +74,7 @@ goals:
   daily_wheat:
     title: "&e일일 채집가"
     reset: daily
-    preset: break          # break/place/kill/mythic_kill/craft/smelt/pickup/fish/stay
+    preset: break          # preset 목록은 아래 표 참고
     when: wheat,carrots,potatoes
     target: 300
     rewards:
@@ -83,21 +83,39 @@ goals:
 ```
 
 ### 4.1 preset 목록
-| preset        | 내부 소스               | 설명                          |
-|---------------|--------------------------|-------------------------------|
-| `break`       | `block_break`            | 블록 캐기                     |
-| `place`       | `block_place`            | 블록 놓기                     |
-| `kill`        | `mob_kill`               | 몹 처치                        |
-| `mythic_kill` | `mob_kill:mythic`        | MythicMobs ID/티어 필터       |
-| `craft`       | `craft`                   | 제작 결과물                   |
-| `smelt`       | `smelt`                   | 제련 결과물                   |
-| `pickup`      | `pickup`                  | 아이템 주움(획득)             |
-| `fish`        | `fish`                    | 낚시 성공                     |
-| `stay`        | `region_stay`             | WorldGuard 리전 **1초당 +1**  |
+| preset        | 내부 소스        | 설명                         |
+|---------------|------------------|------------------------------|
+| `break`       | `block_break`    | 블록 캐기                    |
+| `place`       | `block_place`    | 블록 놓기                    |
+| `kill`        | `mob_kill`       | 몹 처치                       |
+| `mythic_kill` | `mob_kill:mythic`| MythicMobs ID/티어 필터      |
+| `craft`       | `craft`          | 제작 결과물                  |
+| `smelt`       | `smelt`          | 제련 결과물                  |
+| `pickup`      | `pickup`         | 아이템 주움(획득)            |
+| `fish`        | `fish`           | 낚시 성공                    |
+| `stay`        | `region_stay`    | WorldGuard 리전 **1초당 +1** |
+| `harvest`     | `harvest`        | 성숙 작물 수확               |
+| `shear`       | `shear`          | 동물 털깎기                  |
+| `breed`       | `breed`          | 동물 번식                    |
+| `tame`        | `tame`           | 몹 길들이기                  |
+| `trade`       | `trade`          | 주민 거래 결과 수령          |
+| `enchant`     | `enchant`        | 아이템 마법 부여             |
+| `anvil`       | `anvil`          | 모루 결과 수령               |
+| `smithing`    | `smithing`       | 대장간 결과 수령             |
+| `brew`        | `brew`           | 물약 양조 완료               |
+| `consume`     | `consume`        | 음식/물약 소비               |
+| `distance`    | `distance`       | 이동 거리 누적               |
+| `advancement` | `advancement`    | 마인크래프트 업적 달성       |
 
 ### 4.2 when(대상)
-- 여러 개: `diamond_ore,ancient_debris`
+- 기본은 소문자 비교, 여러 값은 `diamond_ore,ancient_debris`
 - 전부 허용: `*` 또는 `any`
+- `harvest`/`shear`/`breed`/`tame`/`trade`/`consume`: 블록·엔티티·아이템 키 (예: `wheat`, `sheep`, `golden_carrot`)
+- `trade`: `농부` 2레벨만 추적하고 싶다면 `when: farmer:2`, 직업만 지정 시 `farmer`
+- `enchant`: 인챈트 키 (예: `sharpness`). `where.level_min`, `where.level_max`로 레벨 범위 설정
+- `smithing`/`anvil`/`brew`: 결과 아이템 또는 포션 키 (`long_swiftness` 등)
+- `distance`: `on_foot`, `boat`, `elytra`
+- `advancement`: 네임스페이스 포함 키 (`minecraft:story/mine_stone`). `minecraft:story/*` 와일드카드 지원
 - MythicMobs: `mythic_kill` + `when: BOSS_A,BOSS_B` 또는 `*`
 
 ### 4.3 where(선택 — 필터)
@@ -109,6 +127,12 @@ where:
   time: "06:00-23:00"
   tool: HOE              # HOE | PICKAXE | AXE ...
   y_between: "20..60"
+  level_min: 3           # enchant: 최소 레벨
+  level_max: 5           # enchant: 최대 레벨
+  merchant_profession: farmer   # trade: 직업 제한
+  mode: elytra           # distance: 이동 모드 강제
+  distance_sample_ms: 400 # distance: 샘플 주기(ms)
+  distance_min_m: 1.5     # distance: 최소 반영 거리(m)
 ```
 > 위 형식은 내부 DSL로 자동 변환되어 적용됩니다.
 
