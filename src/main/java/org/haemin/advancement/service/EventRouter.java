@@ -391,6 +391,17 @@ public class EventRouter implements Listener {
         if (player == null) return;
         String normalizedKind = kind.toLowerCase(Locale.ROOT);
         String normalizedId = id == null ? "" : id.toLowerCase(Locale.ROOT);
+        if (ctx != null) {
+            ctx.extra("source", normalizedKind)
+               .extra("kind", normalizedKind)
+               .extra("id", normalizedId)
+               .extra(normalizedKind, normalizedId)
+               .extra(normalizedKind + "_id", normalizedId);
+            if (normalizedKind.equals("mob_kill") && normalizedId.startsWith("mythic:")) {
+                String mythicId = normalizedId.substring("mythic:".length());
+                if (!mythicId.isEmpty()) ctx.extra("mythic", mythicId).extra("mythic_id", mythicId);
+            }
+        }
         for (GoalDef def : plugin.goals().trackedBy(normalizedKind)) {
             if (def.type == GoalType.CHECKLIST) {
                 handleChecklist(player, def, normalizedKind, normalizedId);

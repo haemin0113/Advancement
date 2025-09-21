@@ -74,7 +74,7 @@ public class GoalRegistry {
         def.filter = cs.getString("filter", "");
         def.target = cs.getLong("target", 1L);
         def.reset = cs.getString("reset", "daily");
-        def.uniqueBy = cs.getString("unique_by", "entity_type");
+        def.uniqueBy = normalizedString(cs.get("unique_by"));
         def.rewards = (List<Map<String, Object>>)(List<?>) cs.getList("rewards", null);
 
         List<?> items = cs.getList("items", null);
