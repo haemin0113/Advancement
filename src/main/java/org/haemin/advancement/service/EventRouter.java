@@ -50,6 +50,8 @@ import org.haemin.advancement.util.Log;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -84,8 +86,14 @@ public class EventRouter implements Listener {
     public void onBreak(BlockBreakEvent e) {
         Player player = e.getPlayer();
         String id = e.getBlock().getType().name().toLowerCase(Locale.ROOT);
-        handle(player, "block_break", List.of(id), 1, null);
-        if (isMatureCrop(e.getBlock())) handle(player, "harvest", List.of(id), 1, null);
+        EventContext breakCtx = new EventContext();
+        breakCtx.block = id;
+        handle(player, "block_break", List.of(id), 1, breakCtx);
+        if (isMatureCrop(e.getBlock())) {
+            EventContext harvestCtx = new EventContext();
+            harvestCtx.block = id;
+            handle(player, "harvest", List.of(id), 1, harvestCtx);
+        }
     }
 
     @EventHandler
@@ -284,29 +292,37 @@ public class EventRouter implements Listener {
         DistanceState state = distanceStates.computeIfAbsent(player.getUniqueId(), id -> new DistanceState());
         long now = System.currentTimeMillis();
         long interval = distanceSampleInterval(goals);
-        if (!state.ready(now, interval)) {
-            if (state.lastLocation == null || !sameWorld(state.lastLocation, to)) state.update(to, now);
-            return;
-        }
         if (state.lastLocation == null || !sameWorld(state.lastLocation, to)) {
-            state.update(to, now);
+            state.reset(to, now);
             return;
         }
+        double segment = state.lastLocation.distance(to);
+        state.pendingDistance += segment;
+        state.lastLocation = to.clone();
         long elapsed = now - state.lastSample;
-        double distance = state.lastLocation.distance(to);
-        state.update(to, now);
+        if (elapsed < 0) elapsed = 0;
+        state.lastSample = now;
+        state.totalElapsed += elapsed;
+        if (state.totalElapsed < interval) return;
+        double distance = state.pendingDistance;
         if (distance < DEFAULT_DISTANCE_MIN) return;
         double total = state.remainder + distance;
         long meters = (long) Math.floor(total);
         state.remainder = total - meters;
+        state.pendingDistance = 0;
         if (meters <= 0) return;
         String mode = detectMode(player);
         List<String> ids = List.of(mode, "any");
         EventContext ctx = new EventContext();
         ctx.distanceMode = mode;
         ctx.distanceMeters = distance;
-        ctx.elapsedMillis = elapsed;
-        handle(player, "distance", ids, meters, ctx);
+        ctx.elapsedMillis = state.totalElapsed;
+        ctx.distanceElapsedByGoal = distanceElapsed(goals, state, now);
+        Set<String> progressed = handle(player, "distance", ids, meters, ctx);
+        if (!progressed.isEmpty()) {
+            for (String key : progressed) state.goalProgressTime.put(key, now);
+            state.totalElapsed = 0;
+        }
     }
 
     @EventHandler
@@ -340,10 +356,11 @@ public class EventRouter implements Listener {
         }
     }
 
-    private void handle(Player player, String kind, Collection<String> ids, long delta, EventContext ctx) {
-        if (player == null) return;
+    private Set<String> handle(Player player, String kind, Collection<String> ids, long delta, EventContext ctx) {
+        if (player == null) return Collections.emptySet();
         String normalizedKind = kind.toLowerCase(Locale.ROOT);
         List<String> normalizedIds = normalize(ids);
+        Set<String> progressed = new HashSet<>();
         for (GoalDef def : plugin.goals().trackedBy(normalizedKind)) {
             if (!matchesOptions(def, ctx)) continue;
             if (def.type == GoalType.CHECKLIST) {
@@ -362,7 +379,10 @@ public class EventRouter implements Listener {
                     if (!progress.completed && progress.value >= def.target) progress.completed = true;
                     changed = true;
                 }
-                if (changed) plugin.progress().flushAll();
+                if (changed) {
+                    plugin.progress().flushAll();
+                    progressed.add(def.key);
+                }
                 continue;
             }
 
@@ -374,10 +394,13 @@ public class EventRouter implements Listener {
                 progress.value += delta;
                 if (!progress.completed && progress.value >= def.target) progress.completed = true;
                 plugin.progress().flushAll();
+                progressed.add(def.key);
             } else {
                 plugin.progress().add(player, def, delta);
+                progressed.add(def.key);
             }
         }
+        return progressed.isEmpty() ? Collections.emptySet() : progressed;
     }
 
     private List<String> normalize(Collection<String> ids) {
@@ -432,9 +455,21 @@ public class EventRouter implements Listener {
         }
         if (options.containsKey("distance_sample_ms")) {
             long required = ((Number) options.get("distance_sample_ms")).longValue();
-            if (ctx == null || ctx.elapsedMillis < required) return false;
+            long elapsed = ctx == null ? 0L : ctx.distanceElapsed(def.key, ctx.elapsedMillis);
+            if (elapsed < required) return false;
         }
         return true;
+    }
+
+    private Map<String, Long> distanceElapsed(Collection<GoalDef> goals, DistanceState state, long now) {
+        if (goals.isEmpty()) return Collections.emptyMap();
+        Map<String, Long> out = new HashMap<>();
+        for (GoalDef def : goals) {
+            long anchor = state.goalProgressTime.computeIfAbsent(def.key, k -> Math.max(0L, now - state.totalElapsed));
+            long elapsed = Math.max(0L, now - anchor);
+            out.put(def.key, elapsed);
+        }
+        return out;
     }
 
     private void handleAnvil(Player player, ItemStack result) {
@@ -558,21 +593,30 @@ public class EventRouter implements Listener {
         double distanceMeters;
         long elapsedMillis;
         String advancementKey;
+        String block;
+        Map<String, Long> distanceElapsedByGoal;
+
+        long distanceElapsed(String goalKey, long fallback) {
+            if (distanceElapsedByGoal == null || distanceElapsedByGoal.isEmpty()) return fallback;
+            return distanceElapsedByGoal.getOrDefault(goalKey, fallback);
+        }
     }
 
     private static final class DistanceState {
         Location lastLocation;
         long lastSample;
         double remainder;
+        double pendingDistance;
+        long totalElapsed;
+        Map<String, Long> goalProgressTime = new HashMap<>();
 
-        boolean ready(long now, long interval) {
-            if (lastSample == 0L) return false;
-            return now - lastSample >= interval;
-        }
-
-        void update(Location location, long now) {
+        void reset(Location location, long now) {
             this.lastLocation = location == null ? null : location.clone();
             this.lastSample = now;
+            this.totalElapsed = 0L;
+            this.pendingDistance = 0D;
+            this.remainder = 0D;
+            this.goalProgressTime.clear();
         }
     }
 }
