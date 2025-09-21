@@ -39,6 +39,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.MerchantInventory;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.PotionMeta;
+import org.bukkit.potion.PotionData;
 import org.bukkit.potion.PotionType;
 import org.haemin.advancement.AdvancementPlugin;
 import org.haemin.advancement.model.GoalDef;
@@ -518,10 +519,13 @@ public class EventRouter implements Listener {
         ItemMeta meta = stack.getItemMeta();
         if (meta instanceof PotionMeta potionMeta) {
             try {
-                PotionType typeEnum = potionMeta.getBasePotionType();
-                if (typeEnum != null) {
-                    NamespacedKey key = typeEnum.getKey();
-                    if (key != null) return key.toString().toLowerCase(Locale.ROOT);
+                PotionData data = potionMeta.getBasePotionData();
+                if (data != null) {
+                    PotionType typeEnum = data.getType();
+                    if (typeEnum != null) {
+                        NamespacedKey key = typeEnum.getKey();
+                        if (key != null) return key.toString().toLowerCase(Locale.ROOT);
+                    }
                 }
             } catch (Throwable ignored) {}
         }
