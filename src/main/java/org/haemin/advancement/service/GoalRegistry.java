@@ -74,7 +74,17 @@ public class GoalRegistry {
         def.filter = cs.getString("filter", "");
         def.target = cs.getLong("target", 1L);
         def.reset = cs.getString("reset", "daily");
-        def.uniqueBy = cs.getString("unique_by", "entity_type");
+        String uniqueRaw = cs.getString("unique_by", "");
+        if (uniqueRaw != null) {
+            uniqueRaw = uniqueRaw.trim();
+            if (uniqueRaw.isEmpty() || uniqueRaw.equalsIgnoreCase("none") || uniqueRaw.equals("*")) {
+                uniqueRaw = null;
+            }
+        }
+        def.uniqueBy = uniqueRaw == null ? null : uniqueRaw.toLowerCase(Locale.ROOT);
+        if ((def.uniqueBy == null || def.uniqueBy.isBlank()) && def.type == GoalType.UNIQUE) {
+            def.uniqueBy = "entity_type";
+        }
         def.rewards = (List<Map<String, Object>>)(List<?>) cs.getList("rewards", null);
 
         List<?> items = cs.getList("items", null);
@@ -109,6 +119,7 @@ public class GoalRegistry {
 
         applySimpleDsl(def, cs);
         def.trackMatchers = buildTrackMatchers(def.track);
+        def.trackSpecs = buildTrackSpecs(def.track);
         def.checklistMatchers = buildChecklistMatchers(def.checklistItems);
         return def;
     }
@@ -117,6 +128,7 @@ public class GoalRegistry {
         if (track == null || track.isEmpty()) return Collections.emptyMap();
         Map<String, Boolean> matchAny = new HashMap<>();
         Map<String, Set<String>> values = new HashMap<>();
+        Map<String, List<String>> wildcards = new HashMap<>();
         for (Map<String, Object> entry : track) {
             Object srcObj = entry.get("source");
             if (srcObj == null) continue;
@@ -136,6 +148,9 @@ public class GoalRegistry {
             for (String part : parts) {
                 String v = part.trim();
                 if (!v.isEmpty()) set.add(v);
+                if (!v.isEmpty() && v.contains("*")) {
+                    wildcards.computeIfAbsent(kind, k -> new ArrayList<>()).add(v);
+                }
             }
         }
         if (matchAny.isEmpty() && values.isEmpty()) return Collections.emptyMap();
@@ -146,9 +161,80 @@ public class GoalRegistry {
         for (String kind : kinds) {
             boolean any = matchAny.containsKey(kind);
             Set<String> set = values.get(kind);
-            out.put(kind, new GoalDef.TrackMatcher(any, set));
+            List<String> wc = wildcards.get(kind);
+            if (set != null && !set.isEmpty()) {
+                set.removeIf(s -> s.contains("*"));
+                if (set.isEmpty()) set = null;
+            }
+            out.put(kind, new GoalDef.TrackMatcher(any, set, wc));
         }
         return out.isEmpty() ? Collections.emptyMap() : Collections.unmodifiableMap(out);
+    }
+
+    private Map<String, List<GoalDef.TrackSpec>> buildTrackSpecs(List<Map<String, Object>> track) {
+        if (track == null || track.isEmpty()) return Collections.emptyMap();
+        Map<String, List<GoalDef.TrackSpec>> out = new HashMap<>();
+        for (int i = 0; i < track.size(); i++) {
+            Map<String, Object> entry = track.get(i);
+            if (entry == null) continue;
+            Object srcObj = entry.get("source");
+            if (srcObj == null) continue;
+            String src = String.valueOf(srcObj).trim();
+            if (src.isEmpty()) continue;
+            String lower = src.toLowerCase(Locale.ROOT);
+            int idx = lower.indexOf(':');
+            if (idx < 0) continue;
+            String kind = lower.substring(0, idx);
+            String payload = lower.substring(idx + 1);
+            boolean any = payload.equals("*") || payload.equals("any");
+            LinkedHashSet<String> exact = new LinkedHashSet<>();
+            List<String> wild = new ArrayList<>();
+            if (!any) {
+                String[] parts = payload.split(",");
+                for (String part : parts) {
+                    String v = part.trim();
+                    if (v.isEmpty()) continue;
+                    if (v.contains("*")) wild.add(v);
+                    else exact.add(v);
+                }
+            }
+            String preset = String.valueOf(entry.getOrDefault("preset", kind));
+            int levelMin = parseInt(entry.get("level_min"), -1);
+            int levelMax = parseInt(entry.get("level_max"), -1);
+            String merchant = normalizedString(entry.get("merchant_profession"));
+            int sampleMs = parseInt(entry.get("distance_sample_ms"), 250);
+            double minMeters = parseDouble(entry.get("distance_min_m"), 0.2D);
+            String mode = normalizedString(entry.get("mode"));
+            GoalDef.TrackSpec spec = new GoalDef.TrackSpec(i, kind, any, exact, wild, preset, levelMin, levelMax, merchant, sampleMs, minMeters, mode);
+            out.computeIfAbsent(kind, k -> new ArrayList<>()).add(spec);
+        }
+        if (out.isEmpty()) return Collections.emptyMap();
+        for (Map.Entry<String, List<GoalDef.TrackSpec>> e : out.entrySet()) {
+            e.setValue(List.copyOf(e.getValue()));
+        }
+        return Collections.unmodifiableMap(out);
+    }
+
+    private int parseInt(Object obj, int def) {
+        if (obj instanceof Number) return ((Number) obj).intValue();
+        if (obj instanceof String) {
+            try { return Integer.parseInt(((String) obj).trim()); } catch (Exception ignored) {}
+        }
+        return def;
+    }
+
+    private double parseDouble(Object obj, double def) {
+        if (obj instanceof Number) return ((Number) obj).doubleValue();
+        if (obj instanceof String) {
+            try { return Double.parseDouble(((String) obj).trim()); } catch (Exception ignored) {}
+        }
+        return def;
+    }
+
+    private String normalizedString(Object obj) {
+        if (obj == null) return null;
+        String s = String.valueOf(obj).trim();
+        return s.isEmpty() ? null : s.toLowerCase(Locale.ROOT);
     }
 
     private Map<String, List<GoalDef.ChecklistMatcher>> buildChecklistMatchers(List<Map<String, Object>> checklistItems) {
@@ -188,7 +274,11 @@ public class GoalRegistry {
     }
 
     private void registerIndex(GoalDef def, Map<String, LinkedHashSet<GoalDef>> indexBuilder) {
-        if (def.trackMatchers != null) {
+        if (def.trackSpecs != null) {
+            for (String kind : def.trackSpecs.keySet()) {
+                indexBuilder.computeIfAbsent(kind, k -> new LinkedHashSet<>()).add(def);
+            }
+        } else if (def.trackMatchers != null) {
             for (String kind : def.trackMatchers.keySet()) {
                 indexBuilder.computeIfAbsent(kind, k -> new LinkedHashSet<>()).add(def);
             }
@@ -201,6 +291,17 @@ public class GoalRegistry {
     }
 
     private void applySimpleDsl(GoalDef def, ConfigurationSection cs) {
+        ConfigurationSection whereSection = cs.getConfigurationSection("where");
+        Map<String, Object> extras = new LinkedHashMap<>();
+        if (whereSection != null) {
+            if (whereSection.isSet("level_min")) extras.put("level_min", whereSection.getInt("level_min"));
+            if (whereSection.isSet("level_max")) extras.put("level_max", whereSection.getInt("level_max"));
+            if (whereSection.isSet("merchant_profession")) extras.put("merchant_profession", whereSection.getString("merchant_profession"));
+            if (whereSection.isSet("distance_sample_ms")) extras.put("distance_sample_ms", whereSection.getInt("distance_sample_ms"));
+            if (whereSection.isSet("distance_min_m")) extras.put("distance_min_m", whereSection.getDouble("distance_min_m"));
+            if (whereSection.isSet("mode")) extras.put("mode", whereSection.getString("mode"));
+        }
+
         if (def.track == null || def.track.isEmpty()) {
             String preset = cs.getString("preset", null);
             String when = cs.getString("when", null);
@@ -209,13 +310,20 @@ public class GoalRegistry {
                 if (src != null) {
                     Map<String, Object> e = new LinkedHashMap<>();
                     e.put("source", src);
+                    e.put("preset", preset.trim().toLowerCase(Locale.ROOT));
+                    if (!extras.isEmpty()) {
+                        for (Map.Entry<String, Object> ex : extras.entrySet()) {
+                            e.put(ex.getKey(), ex.getValue());
+                        }
+                    }
                     def.track = List.of(e);
-                    if ("mythic_kill".equalsIgnoreCase(preset) && def.uniqueBy == null) def.uniqueBy = "mythic_id";
+                    if ("mythic_kill".equalsIgnoreCase(preset) && (def.uniqueBy == null || def.uniqueBy.isBlank())) def.uniqueBy = "mythic_id";
+                    if ("advancement".equalsIgnoreCase(preset) && (def.uniqueBy == null || def.uniqueBy.isBlank())) def.uniqueBy = "advancement_key";
                 }
             }
         }
-        if ((def.filter == null || def.filter.isBlank()) && cs.isConfigurationSection("where")) {
-            ConfigurationSection w = cs.getConfigurationSection("where");
+        if ((def.filter == null || def.filter.isBlank()) && whereSection != null) {
+            ConfigurationSection w = whereSection;
             List<String> parts = new ArrayList<>();
             String world = w.getString("world", null);
             if (world != null && !world.isBlank()) {
@@ -264,6 +372,18 @@ public class GoalRegistry {
         if (p.equals("pickup")) return "pickup:" + list;
         if (p.equals("fish")) return "fish:" + list;
         if (p.equals("stay") || p.equals("region_stay")) return "region_stay:" + list;
+        if (p.equals("harvest")) return "harvest:" + list;
+        if (p.equals("shear")) return "shear:" + list;
+        if (p.equals("breed")) return "breed:" + list;
+        if (p.equals("tame")) return "tame:" + list;
+        if (p.equals("trade")) return "trade:" + list;
+        if (p.equals("enchant")) return "enchant:" + list;
+        if (p.equals("anvil")) return "anvil:" + list;
+        if (p.equals("smithing")) return "smithing:" + list;
+        if (p.equals("brew")) return "brew:" + list;
+        if (p.equals("consume")) return "consume:" + list;
+        if (p.equals("distance")) return "distance:" + list;
+        if (p.equals("advancement")) return "advancement:" + list;
         return null;
     }
 

@@ -47,7 +47,7 @@ goals:
   daily_wheat:
     title: "&e일일 채집가"
     reset: daily
-    preset: break          # break/place/kill/mythic_kill/craft/smelt/pickup/fish/stay
+    preset: break          # preset 목록은 아래 안내 참고
     when: wheat,carrots,potatoes
     target: 300
     rewards:
@@ -57,19 +57,37 @@ goals:
 
 ### 2.1 preset 목록
 - `break`       : 블록 캐기 (`block_break`)
+- `harvest`     : 성숙 작물 수확 (`harvest`)
 - `place`       : 블록 놓기 (`block_place`)
 - `kill`        : 몹 처치 (`mob_kill`)
 - `mythic_kill` : MythicMobs 처치 (`mob_kill:mythic`)
+- `shear`       : 동물 털깎기 (`shear`)
+- `breed`       : 동물 번식 (`breed`)
+- `tame`        : 길들이기 (`tame`)
 - `craft`       : 제작 결과물 (`craft`)
 - `smelt`       : 제련 결과물 (`smelt`)
 - `pickup`      : 아이템 주움 (`pickup`)
 - `fish`        : 낚시 성공 (`fish`)
+- `trade`       : 주민 거래 결과 수령 (`trade`)
+- `enchant`     : 아이템 마법 부여 (`enchant`)
+- `anvil`       : 모루 수리/합성 결과 (`anvil`)
+- `smithing`    : 대장장이 작업대 결과 (`smithing`)
+- `brew`        : 포션 양조 완료 (`brew`)
+- `consume`     : 음식/포션 섭취 (`consume`)
+- `distance`    : 이동 거리 누적 (`distance`)
+- `advancement` : 어드밴스먼트 달성 (`advancement`)
 - `stay`        : 리전 체류 1초당 +1 (`region_stay`)
 
 ### 2.2 when(대상)
 - 여러 개: `diamond_ore,ancient_debris`
 - 전부 허용: `*` 또는 `any`
 - MythicMobs: `mythic_kill` + `when: BOSS_A,BOSS_B` 또는 `*`
+- 수확/털깎기/번식/길들이기: 블록·엔티티 키(`wheat`, `sheep` 등)
+- 거래: 주민 직업(`farmer`), 레벨(`master`), 조합(`farmer:master`), 숫자(`5`), `any`
+- 인챈트: `sharpness`, `mending` 등 인챈트 키 (레벨 조건은 `where.level_min/max`)
+- 모루/대장장이/양조/섭취: 결과 아이템 또는 포션 키(`minecraft:strong_healing`)
+- 이동: `on_foot`, `boat`, `elytra`
+- 어드밴스먼트: `minecraft:story/mine_stone`, `minecraft:story/*` 와일드카드 허용
 
 ### 2.3 reset(초기화)
 - `daily`, `weekly`, `monthly`, `season:<ID>`, `repeat`
@@ -85,6 +103,66 @@ where:
   time: "06:00-23:00"
   tool: HOE              # HOE | PICKAXE | AXE ...
   y_between: "20..60"
+  level_min: 3
+  level_max: 5
+  merchant_profession: FARMER
+  distance_sample_ms: 250
+  distance_min_m: 0.2
+  mode: elytra
+```
+
+> 위 형식은 내부 DSL로 자동 변환되어 적용됩니다.
+- `level_min`, `level_max`: 인챈트 레벨 필터
+- `merchant_profession`: 거래 시 특정 직업만 허용
+- `distance_sample_ms`: 이동 샘플 최소 간격(기본 250ms)
+- `distance_min_m`: 이동 거리 최소 단위(기본 0.2m)
+- `mode`: distance 목표의 이동 모드 강제(on_foot/boat/elytra)
+
+### 2.5 신규 preset 샘플
+```yml
+goals:
+  daily_harvest:
+    title: "&e일일 수확"
+    reset: daily
+    preset: harvest
+    when: wheat,carrots,potatoes
+    target: 200
+    rewards: [{ money: 600 }]
+
+  weekly_trader:
+    title: "&6주간 상인"
+    reset: weekly
+    preset: trade
+    when: any
+    target: 50
+    rewards: [{ money: 4000 }]
+
+  brewer_week:
+    title: "&d양조 달인"
+    reset: weekly
+    preset: brew
+    when: any
+    target: 64
+    rewards: [{ money: 3000 }]
+
+  elytra_runner:
+    title: "&a엘리트라 장거리"
+    reset: weekly
+    preset: distance
+    when: elytra
+    target: 20000
+    rewards: [{ money: 5000 }]
+
+  vanilla_master:
+    title: "&c바닐라 성취가"
+    type: unique
+    reset: season:2025S4
+    preset: advancement
+    when: "minecraft:story/*"
+    unique_by: advancement_key
+    target: 10
+    rewards:
+      - { cmd: "lp user %player% perm settemp cosmetic.title.master true 30d" }
 ```
 
 ---

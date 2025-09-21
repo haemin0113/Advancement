@@ -44,6 +44,7 @@ public class YamlPlayerStore {
         p.ttAccum = c.getLong(base + "tt_accum", 0);
         p.ttCooldownUntil = c.getLong(base + "tt_cd_until", 0);
         p.ttBest = c.getLong(base + "tt_best", 0);
+        p.uniques = new java.util.LinkedHashSet<>(c.getStringList(base + "uniques"));
         return p;
     }
 
@@ -64,6 +65,7 @@ public class YamlPlayerStore {
                 c.set(base + "tt_accum", p.ttAccum);
                 c.set(base + "tt_cd_until", p.ttCooldownUntil);
                 c.set(base + "tt_best", p.ttBest);
+                c.set(base + "uniques", p.uniques == null ? null : new java.util.ArrayList<>(p.uniques));
                 File f = file(uuid);
                 File parent = f.getParentFile();
                 if (!parent.exists()) parent.mkdirs();

@@ -20,6 +20,8 @@ public class Progress {
     public long ttCooldownUntil;
     public long ttBest;
 
+    public java.util.Set<String> uniques;
+
     public Progress() {}
     public Progress(long value, long target) { this.value = value; this.target = target; }
 
