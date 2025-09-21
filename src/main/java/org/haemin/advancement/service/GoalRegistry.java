@@ -74,7 +74,17 @@ public class GoalRegistry {
         def.filter = cs.getString("filter", "");
         def.target = cs.getLong("target", 1L);
         def.reset = cs.getString("reset", "daily");
-        def.uniqueBy = cs.getString("unique_by", "entity_type");
+        String uniqueRaw = cs.getString("unique_by", "");
+        if (uniqueRaw != null) {
+            uniqueRaw = uniqueRaw.trim();
+            if (uniqueRaw.isEmpty() || uniqueRaw.equalsIgnoreCase("none") || uniqueRaw.equals("*")) {
+                uniqueRaw = null;
+            }
+        }
+        def.uniqueBy = uniqueRaw == null ? null : uniqueRaw.toLowerCase(Locale.ROOT);
+        if ((def.uniqueBy == null || def.uniqueBy.isBlank()) && def.type == GoalType.UNIQUE) {
+            def.uniqueBy = "entity_type";
+        }
         def.rewards = (List<Map<String, Object>>)(List<?>) cs.getList("rewards", null);
 
         List<?> items = cs.getList("items", null);
@@ -308,7 +318,7 @@ public class GoalRegistry {
                     }
                     def.track = List.of(e);
                     if ("mythic_kill".equalsIgnoreCase(preset) && (def.uniqueBy == null || def.uniqueBy.isBlank())) def.uniqueBy = "mythic_id";
-                    if ("advancement".equalsIgnoreCase(preset) && (def.uniqueBy == null || def.uniqueBy.isBlank() || "entity_type".equalsIgnoreCase(def.uniqueBy))) def.uniqueBy = "advancement_key";
+                    if ("advancement".equalsIgnoreCase(preset) && (def.uniqueBy == null || def.uniqueBy.isBlank())) def.uniqueBy = "advancement_key";
                 }
             }
         }
