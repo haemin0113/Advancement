@@ -30,12 +30,14 @@ public class ProgressService {
 
     public Progress get(UUID uuid, GoalDef def) {
         Progress p = loadRaw(uuid, def.key, def.target);
+        if (p.uniques == null) p.uniques = new LinkedHashSet<>();
         String current = plugin.resets().periodIdFor(def.reset);
         if (!Objects.equals(current, p.period)) {
             p.period = current;
             p.value = 0; p.completed = false;
             p.checklistBits = 0; p.streak = 0; p.lastTs = 0; p.best = 0;
             p.ttStart = 0; p.ttAccum = 0; p.ttCooldownUntil = 0; p.ttBest = 0;
+            p.uniques = new LinkedHashSet<>();
             store.save(uuid, def.key, p, plugin.cfg().saveAsync());
         }
         return p;
@@ -88,11 +90,24 @@ public class ProgressService {
     }
 
     public void add(Player player, GoalDef def, long delta) {
+        increment(player, def, delta, null);
+    }
+
+    public void increment(Player player, GoalDef def, long delta, TrackContext ctx) {
         if (player == null || def == null || delta <= 0) return;
         if (!isActive(player, def)) return;
         Progress pr = get(player.getUniqueId(), def);
         boolean repeat = plugin.resets().isRepeat(def.reset);
         if (pr.completed && !repeat) return;
+
+        if (ctx != null && def.uniqueBy != null && !def.uniqueBy.isBlank()) {
+            String token = ctx.valueFor(def.uniqueBy);
+            if (token != null && !token.isEmpty()) {
+                if (pr.uniques == null) pr.uniques = new LinkedHashSet<>();
+                if (pr.uniques.contains(token)) return;
+                pr.uniques.add(token);
+            }
+        }
 
         double mul = calcMultiplier(player, def);
         long bonus = calcFlatAdd(player, def);

@@ -74,7 +74,7 @@ goals:
   daily_wheat:
     title: "&e일일 채집가"
     reset: daily
-    preset: break          # break/place/kill/mythic_kill/craft/smelt/pickup/fish/stay
+    preset: break          # preset 목록은 아래 표 참고
     when: wheat,carrots,potatoes
     target: 300
     rewards:
@@ -86,19 +86,37 @@ goals:
 | preset        | 내부 소스               | 설명                          |
 |---------------|--------------------------|-------------------------------|
 | `break`       | `block_break`            | 블록 캐기                     |
+| `harvest`     | `harvest`                | 성숙 작물 수확(최대 단계만)   |
 | `place`       | `block_place`            | 블록 놓기                     |
 | `kill`        | `mob_kill`               | 몹 처치                        |
 | `mythic_kill` | `mob_kill:mythic`        | MythicMobs ID/티어 필터       |
-| `craft`       | `craft`                   | 제작 결과물                   |
-| `smelt`       | `smelt`                   | 제련 결과물                   |
-| `pickup`      | `pickup`                  | 아이템 주움(획득)             |
-| `fish`        | `fish`                    | 낚시 성공                     |
-| `stay`        | `region_stay`             | WorldGuard 리전 **1초당 +1**  |
+| `shear`       | `shear`                  | 동물 털깎기 성공              |
+| `breed`       | `breed`                  | 플레이어가 번식시킨 동물      |
+| `tame`        | `tame`                   | 생명체 길들이기               |
+| `craft`       | `craft`                  | 제작 결과물                   |
+| `smelt`       | `smelt`                  | 제련 결과물                   |
+| `pickup`      | `pickup`                 | 아이템 주움(획득)             |
+| `fish`        | `fish`                   | 낚시 성공                     |
+| `trade`       | `trade`                  | 주민 거래 결과 수령           |
+| `enchant`     | `enchant`                | 아이템 마법 부여              |
+| `anvil`       | `anvil`                  | 모루 수리/합성 결과 수령      |
+| `smithing`    | `smithing`               | 대장장이 작업대 결과 수령    |
+| `brew`        | `brew`                   | 포션 양조(완성 병 수만큼)     |
+| `consume`     | `consume`                | 음식·포션 섭취               |
+| `distance`    | `distance`               | 이동 거리 누적 (on_foot/boat/elytra) |
+| `advancement` | `advancement`            | 어드밴스먼트 달성             |
+| `stay`        | `region_stay`            | WorldGuard 리전 **1초당 +1**  |
 
 ### 4.2 when(대상)
 - 여러 개: `diamond_ore,ancient_debris`
 - 전부 허용: `*` 또는 `any`
 - MythicMobs: `mythic_kill` + `when: BOSS_A,BOSS_B` 또는 `*`
+- 수확/털깎기/번식/길들이기: 블록·엔티티 키(`wheat`, `sheep` 등)
+- 거래: 주민 직업(`farmer`), 레벨(`master`), 조합(`farmer:master`), 숫자(`5`), `any`
+- 인챈트: `sharpness`, `mending` 등 인챈트 키 (레벨 조건은 `where.level_min/max`)
+- 모루/대장장이/양조/섭취: 결과 아이템 키 또는 포션 키(`minecraft:strong_healing`)
+- 이동: `on_foot`, `boat`, `elytra`
+- 어드밴스먼트: `minecraft:story/mine_stone`, `minecraft:story/*` 처럼 와일드카드 허용
 
 ### 4.3 where(선택 — 필터)
 ```yml
@@ -109,8 +127,66 @@ where:
   time: "06:00-23:00"
   tool: HOE              # HOE | PICKAXE | AXE ...
   y_between: "20..60"
+  level_min: 3           # 인챈트 최소 레벨
+  level_max: 5
+  merchant_profession: FARMER
+  distance_sample_ms: 250
+  distance_min_m: 0.2
+  mode: elytra           # distance 모드 강제(on_foot/boat/elytra)
 ```
 > 위 형식은 내부 DSL로 자동 변환되어 적용됩니다.
+- `level_min`, `level_max`: 인챈트 레벨 필터
+- `merchant_profession`: 거래 시 주민 직업 고정
+- `distance_sample_ms`: 이동 샘플 간 최소 시간(기본 250ms)
+- `distance_min_m`: 이동 거리 최소 허용값(기본 0.2m)
+- `mode`: distance 목표에서 강제할 이동 모드
+
+### 4.5 신규 preset 샘플
+```yml
+goals:
+  daily_harvest:
+    title: "&e일일 수확"
+    reset: daily
+    preset: harvest
+    when: wheat,carrots,potatoes
+    target: 200
+    rewards: [{ money: 600 }]
+
+  weekly_trader:
+    title: "&6주간 상인"
+    reset: weekly
+    preset: trade
+    when: any
+    target: 50
+    rewards: [{ money: 4000 }]
+
+  brewer_week:
+    title: "&d양조 달인"
+    reset: weekly
+    preset: brew
+    when: any
+    target: 64
+    rewards: [{ money: 3000 }]
+
+  elytra_runner:
+    title: "&a엘리트라 장거리"
+    reset: weekly
+    preset: distance
+    when: elytra
+    target: 20000
+    rewards: [{ money: 5000 }]
+
+  vanilla_master:
+    title: "&c바닐라 성취가"
+    type: unique
+    reset: season:2025S4
+    preset: advancement
+    when: "minecraft:story/*"
+    unique_by: advancement_key
+    target: 10
+    rewards:
+      - { cmd: "lp user %player% perm settemp cosmetic.title.master true 30d" }
+```
 
 ### 4.4 reset(초기화)
 - `daily`, `weekly`, `monthly`, `season:<ID>`, `repeat`
