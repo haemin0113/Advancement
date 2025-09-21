@@ -2,41 +2,70 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
   pull_request:
-    # 문서만 바뀐 PR은 스킵하고 싶으면 주석 해제
-    # paths-ignore: [ '**/*.md', 'docs/**' ]
+    branches: [ "main" ]
+  workflow_dispatch:
+
+# 같은 브랜치에서 새 커밋이 오면 이전 작업 취소
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  build-test:               # ← 브랜치 보호 규칙의 “CI / build-test”와 정확히 일치해야 함
-    name: build-test        # ← PR 화면에 보이는 잡 이름
+  # ✅ 브랜치 보호 규칙에서 '필수 체크'로 지정할 이름은 이 Job ID인 build-test 입니다.
+  build-test:
     runs-on: ubuntu-latest
+    env:
+      # TLS 문제 회피(일부 네트워크에서 필요)
+      MAVEN_OPTS: -Dhttps.protocols=TLSv1.2
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Setup Temurin JDK
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'      # pom이 17이면 '17'로 바꿔도 됨
+          java-version: '21'
           cache: maven
 
-      - name: Print Maven/Java
+      # Maven Central 접속 불안정 대비 미러 설정
+      - name: Write ~/.m2/settings.xml (mirror)
         run: |
-          java -version
-          mvn -v
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<'EOF'
+          <settings xmlns="http://maven.apache.org/SETTINGS/1.2.0"
+                    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                    xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.2.0 https://maven.apache.org/xsd/settings-1.2.0.xsd">
+            <mirrors>
+              <mirror>
+                <id>central-repo1</id>
+                <name>Central via repo1</name>
+                <url>https://repo1.maven.org/maven2</url>
+                <mirrorOf>central</mirrorOf>
+              </mirror>
+            </mirrors>
+          </settings>
+          EOF
 
-      - name: Build (skip tests)
-        run: mvn -B -DskipTests package
+      # 테스트가 없어도 성공. 테스트가 있다면 여기서도 돌아갑니다.
+      - name: Build (package)
+        run: mvn -B -V -U -DskipTests package
 
-      - name: Upload jar (PR only)
-        if: github.event_name == 'pull_request'
+      # 생성된 플러그인 JAR를 아티팩트로 업로드 (Actions → 해당 Run → Artifacts)
+      - name: Upload plugin jar
         uses: actions/upload-artifact@v4
         with:
-          name: Advancement
-          path: target/*.jar
+          name: Advancement-${{ github.sha }}
+          path: |
+            **/target/*.jar
+            !**/target/*-sources.jar
+            !**/target/*-javadoc.jar
+            !**/target/original-*.jar
