@@ -15,6 +15,7 @@ import java.util.*;
 public class GoalRegistry {
     private final AdvancementPlugin plugin;
     private final Map<String, GoalDef> goals = new LinkedHashMap<>();
+    private Map<String, List<GoalDef>> trackIndex = Collections.emptyMap();
 
     public GoalRegistry(AdvancementPlugin plugin) {
         this.plugin = plugin;
@@ -25,6 +26,7 @@ public class GoalRegistry {
 
     public void reload() {
         goals.clear();
+        Map<String, LinkedHashSet<GoalDef>> indexBuilder = new HashMap<>();
         File dir = new File(new File(plugin.getDataFolder(), "config"), "goals");
         List<File> files = new ArrayList<>();
         if (dir.exists() && dir.isDirectory()) {
@@ -43,13 +45,22 @@ public class GoalRegistry {
                     ConfigurationSection cs = root.getConfigurationSection(key);
                     if (cs == null) continue;
                     GoalDef def = parseGoal(key, cs);
-                    if (def != null) goals.put(def.key, def);
+                    if (def != null) {
+                        goals.put(def.key, def);
+                        registerIndex(def, indexBuilder);
+                    }
                 }
             } catch (Exception e) {
                 Log.info("Failed to load " + f.getName() + " : " + e.getMessage());
             }
         }
         Log.info("Loaded " + goals.size() + " goals from " + files.size() + " file(s).");
+
+        Map<String, List<GoalDef>> finalized = new HashMap<>();
+        for (Map.Entry<String, LinkedHashSet<GoalDef>> e : indexBuilder.entrySet()) {
+            finalized.put(e.getKey(), List.copyOf(e.getValue()));
+        }
+        trackIndex = finalized.isEmpty() ? Collections.emptyMap() : Collections.unmodifiableMap(finalized);
     }
 
     private GoalDef parseGoal(String key, ConfigurationSection cs) {
@@ -97,7 +108,96 @@ public class GoalRegistry {
         def.boosts = (List<Map<String, Object>>)(List<?>) cs.getList("boosts", null);
 
         applySimpleDsl(def, cs);
+        def.trackMatchers = buildTrackMatchers(def.track);
+        def.checklistMatchers = buildChecklistMatchers(def.checklistItems);
         return def;
+    }
+
+    private Map<String, GoalDef.TrackMatcher> buildTrackMatchers(List<Map<String, Object>> track) {
+        if (track == null || track.isEmpty()) return Collections.emptyMap();
+        Map<String, Boolean> matchAny = new HashMap<>();
+        Map<String, Set<String>> values = new HashMap<>();
+        for (Map<String, Object> entry : track) {
+            Object srcObj = entry.get("source");
+            if (srcObj == null) continue;
+            String src = String.valueOf(srcObj).trim();
+            if (src.isEmpty()) continue;
+            String lower = src.toLowerCase(Locale.ROOT);
+            int idx = lower.indexOf(':');
+            if (idx < 0) continue;
+            String kind = lower.substring(0, idx);
+            String payload = lower.substring(idx + 1);
+            if (payload.equals("*") || payload.equals("any")) {
+                matchAny.put(kind, true);
+                continue;
+            }
+            String[] parts = payload.split(",");
+            Set<String> set = values.computeIfAbsent(kind, k -> new LinkedHashSet<>());
+            for (String part : parts) {
+                String v = part.trim();
+                if (!v.isEmpty()) set.add(v);
+            }
+        }
+        if (matchAny.isEmpty() && values.isEmpty()) return Collections.emptyMap();
+        Set<String> kinds = new LinkedHashSet<>();
+        kinds.addAll(matchAny.keySet());
+        kinds.addAll(values.keySet());
+        Map<String, GoalDef.TrackMatcher> out = new HashMap<>();
+        for (String kind : kinds) {
+            boolean any = matchAny.containsKey(kind);
+            Set<String> set = values.get(kind);
+            out.put(kind, new GoalDef.TrackMatcher(any, set));
+        }
+        return out.isEmpty() ? Collections.emptyMap() : Collections.unmodifiableMap(out);
+    }
+
+    private Map<String, List<GoalDef.ChecklistMatcher>> buildChecklistMatchers(List<Map<String, Object>> checklistItems) {
+        if (checklistItems == null || checklistItems.isEmpty()) return Collections.emptyMap();
+        Map<String, List<GoalDef.ChecklistMatcher>> out = new HashMap<>();
+        for (int i = 0; i < checklistItems.size(); i++) {
+            Map<String, Object> item = checklistItems.get(i);
+            if (item == null) continue;
+            Object whenObj = item.get("when");
+            if (whenObj == null) continue;
+            String when = String.valueOf(whenObj).trim();
+            if (when.isEmpty()) continue;
+            String lower = when.toLowerCase(Locale.ROOT);
+            int idx = lower.indexOf(':');
+            if (idx < 0) continue;
+            String kind = lower.substring(0, idx);
+            String payload = lower.substring(idx + 1);
+            boolean any = payload.equals("*") || payload.equals("any");
+            Set<String> values = Collections.emptySet();
+            if (!any) {
+                String[] parts = payload.split(",");
+                LinkedHashSet<String> set = new LinkedHashSet<>();
+                for (String part : parts) {
+                    String v = part.trim();
+                    if (!v.isEmpty()) set.add(v);
+                }
+                values = set;
+            }
+            GoalDef.ChecklistMatcher matcher = new GoalDef.ChecklistMatcher(i, any, values);
+            out.computeIfAbsent(kind, k -> new ArrayList<>()).add(matcher);
+        }
+        if (out.isEmpty()) return Collections.emptyMap();
+        for (Map.Entry<String, List<GoalDef.ChecklistMatcher>> e : out.entrySet()) {
+            e.setValue(List.copyOf(e.getValue()));
+        }
+        return Collections.unmodifiableMap(out);
+    }
+
+    private void registerIndex(GoalDef def, Map<String, LinkedHashSet<GoalDef>> indexBuilder) {
+        if (def.trackMatchers != null) {
+            for (String kind : def.trackMatchers.keySet()) {
+                indexBuilder.computeIfAbsent(kind, k -> new LinkedHashSet<>()).add(def);
+            }
+        }
+        if (def.checklistMatchers != null) {
+            for (String kind : def.checklistMatchers.keySet()) {
+                indexBuilder.computeIfAbsent(kind, k -> new LinkedHashSet<>()).add(def);
+            }
+        }
     }
 
     private void applySimpleDsl(GoalDef def, ConfigurationSection cs) {
@@ -271,4 +371,8 @@ public class GoalRegistry {
 
     public Collection<GoalDef> all() { return goals.values(); }
     public GoalDef get(String key) { return goals.get(key); }
+    public Collection<GoalDef> trackedBy(String kind) {
+        if (kind == null || kind.isEmpty()) return Collections.emptyList();
+        return trackIndex.getOrDefault(kind.toLowerCase(Locale.ROOT), Collections.emptyList());
+    }
 }
