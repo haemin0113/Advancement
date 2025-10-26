@@ -1,8 +1,0 @@
-events:
-  progress_add: { sound: ENTITY_EXPERIENCE_ORB_PICKUP, volume: 1.0, pitch: 1.6 }
-  completed:    { sound: UI_TOAST_CHALLENGE_COMPLETE,  volume: 1.0, pitch: 1.0 }
-  claimed:      { sound: BLOCK_NOTE_BLOCK_BELL,        volume: 1.0, pitch: 1.0 }
-  cooldown:     { sound: BLOCK_NOTE_BLOCK_BASS,        volume: 1.0, pitch: 0.6 }
-  error:        { sound: ENTITY_VILLAGER_NO,           volume: 1.0, pitch: 1.0 }
-  gui_open:     { sound: UI_BUTTON_CLICK,              volume: 0.7, pitch: 1.2 }
-  gui_close:    { sound: BLOCK_CHEST_CLOSE,            volume: 0.7, pitch: 1.0 }
