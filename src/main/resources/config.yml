@@ -1,12 +1,11 @@
 general:
   timezone: "Asia/Seoul"        # 리셋/시즌 스케줄 기준 시간대
-  storage: yaml                  # yaml | sqlite | mysql (현재 v0.1.x는 yaml만 동작)
+  storage: yaml                  # yaml | sqlite | mysql (현재는 yaml만 동작)
   apply_async: true              # 내부 저장 비동기 처리
 
 feedback:
   actionbar: true                # 진행시 액션바 안내
   bossbar: false                 # 보스바 안내(미사용 자리)
-  # 개별 사운드는 config/sounds.yml에서 설정 (여기 값은 무시됨)
 
 scoreboard:
   enabled: true
